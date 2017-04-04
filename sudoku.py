@@ -7,11 +7,11 @@ import time
 # todo: xwing
 
 def same_attrs(iter, attr):
-    check = [getattr(i, attr) for i in iter]
-    if check:
-        return check.count(check[0]) == len(check)
+    attrs = [getattr(i, attr) for i in iter]
+    if attrs:
+        return attrs.count(attrs[0]) == len(attrs)
     else:
-        return False
+        return None
 
 class Sudoku:
     def __init__(self, puzzle):
@@ -77,7 +77,7 @@ class Sudoku:
         row_start = cell.row*self._grid_size
         row_end = row_start + self._grid_size
         return self._cells[row_start:row_end]
-    
+            
     def col(self, cell):
         return self._cells[cell.col::self._grid_size]
         
@@ -110,6 +110,14 @@ class Sudoku:
         else:
             return None
     
+    def cross_vector(self, vector):
+        if vector == self.row:
+            return self.col
+        elif vector == self.col:
+            return self.row
+        else:
+            return None
+            
     def cell_availability(self, cell):
         if cell.value != 0: 
             return []
@@ -152,7 +160,7 @@ class Sudoku:
             for test in tests:
                 test(self.box(cell))
         
-        # self.reveal_xwing()
+        self.reveal_xwing()
                 
     def solve_singles(self):
         '''
@@ -252,12 +260,33 @@ class Sudoku:
         basically, if 2 rows/cols have the same single number as candidates to two boxes in teh same col/row
         you can eliminate it from the remainder of teh row.col
         '''
-        for vector in (self.row, self.col):
+        for vector, fx in [('row', self.row), ('col', self.col)]:
+            if vector=='row':
+                xvector='col'
+            else:
+                xvector='row'
+            
+            cross_fx = self.cross_vector(fx)
+            
+            match_dict = defaultdict(dict)
             for n in range(self._grid_size):
-                candidates = vector(self.Cell(row=n, col=n))
+                candidates = fx(self.Cell(row=n, col=n))
                 available = chain.from_iterable(c.available for c in candidates)
                 matches = [value for value, count in Counter(available).items() if count == 2]
-                if matches: print(vector, matches)
+                
+                for m in matches:
+                    match_dict[m][n] = [cell for cell in candidates if m in cell.available]
+                
+            for match, vectors in match_dict.items():
+                if len(vectors) >= 4:
+                    for pair in combinations(vectors.keys(), 2):
+                        p1 = same_attrs([vectors[pair[0]][0], vectors[pair[1]][0]], xvector)
+                        p2 = same_attrs([vectors[pair[0]][1], vectors[pair[1]][1]], xvector)
+                        if p1 and p2:
+                            safe_cells = [c for c in vectors[pair[0]] + vectors[pair[1]]]
+                            for cell in [c for c in cross_fx(vectors[pair[0]][0]) + cross_fx(vectors[pair[0]][1]) if c not in safe_cells]:
+                                if match in cell.available: self._cells[cell.index].available.remove(match)
+                
             
     @property
     def value(self):
@@ -284,6 +313,7 @@ class Sudoku:
     def __repr__(self):
         rows = [' '.join([str(c.value) for c in self.row(self.Cell(row=n))]) for n in range(self._grid_size)]
         return '\n'.join(rows)
+    
 
 
 def main():          
