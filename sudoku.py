@@ -4,8 +4,7 @@ from types import SimpleNamespace
 
 import time
 
-# todo: implement pointing pair detection
-# todo: hidden pair in box, should clear row and coloumn, too
+# todo: xwing
 
 def same_attrs(iter, attr):
     check = [getattr(i, attr) for i in iter]
@@ -105,8 +104,11 @@ class Sudoku:
         elif same_attrs(candidates, 'row'):
             return self.row
         
-        else:
+        elif same_attrs(candidates, 'box'):
             return self.box
+        
+        else:
+            return None
     
     def cell_availability(self, cell):
         if cell.value != 0: 
@@ -149,6 +151,8 @@ class Sudoku:
         for cell in self.box_cells:
             for test in tests:
                 test(self.box(cell))
+        
+        # self.reveal_xwing()
                 
     def solve_singles(self):
         '''
@@ -241,6 +245,19 @@ class Sudoku:
                         self._cells[m.index].available = list(pair)
                     
                 pairs = find_hidden_pairs(vector(candidates[0]), n)
+    
+    def reveal_xwing(self):
+        '''
+        for rows or cols only, doesnt work for boxes
+        basically, if 2 rows/cols have the same single number as candidates to two boxes in teh same col/row
+        you can eliminate it from the remainder of teh row.col
+        '''
+        for vector in (self.row, self.col):
+            for n in range(self._grid_size):
+                candidates = vector(self.Cell(row=n, col=n))
+                available = chain.from_iterable(c.available for c in candidates)
+                matches = [value for value, count in Counter(available).items() if count == 2]
+                if matches: print(vector, matches)
             
     @property
     def value(self):
