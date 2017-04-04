@@ -4,8 +4,6 @@ from types import SimpleNamespace
 
 import time
 
-# todo: xwing
-
 def same_attrs(iter, attr):
     attrs = [getattr(i, attr) for i in iter]
     if attrs:
@@ -145,6 +143,8 @@ class Sudoku:
         iterate over rows, cols and boxes to do work
         '''
         
+        
+        
         tests = [self.reveal_hidden_singles,
                  self.reveal_naked_pairs,
                  self.reveal_pointing_pairs,
@@ -156,12 +156,12 @@ class Sudoku:
                 test(self.row(cell))
                 test(self.col(cell))
             
+        self.reveal_xwing()
+        
         for cell in self.box_cells:
             for test in tests:
                 test(self.box(cell))
-        
-        self.reveal_xwing()
-                
+
     def solve_singles(self):
         '''
         check available candidates for each cell, if one candidate, solve
