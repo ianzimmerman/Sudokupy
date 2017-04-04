@@ -244,7 +244,7 @@ class Sudoku:
                     for m in matches:
                         self._cells[m.index].available = list(pair)
                     
-                pairs = find_hidden_pairs(vector(candidates[0]), n)
+                #pairs = find_hidden_pairs(vector(candidates[0]), n)
     
     def reveal_xwing(self):
         '''
