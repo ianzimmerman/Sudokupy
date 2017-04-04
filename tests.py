@@ -54,6 +54,7 @@ class TestSudoku(unittest.TestCase):
         self.assertEqual(s._cells[80].available, [2,6,8])
     
     def test_validate(self):
+        self.assertEqual(s.solve_singles(), None)
         self.assertEqual(s.validate(), True)
         self.assertEqual(s.value, '143')
 
