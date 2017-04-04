@@ -2,12 +2,17 @@ from collections import Counter, namedtuple, defaultdict
 from itertools import product, chain, combinations
 from types import SimpleNamespace
 
-import unittest
-
 import time
 
 # todo: implement pointing pair detection
 # todo: hidden pair in box, should clear row and coloumn, too
+
+def same_attrs(iter, attr):
+    check = [getattr(i, attr) for i in iter]
+    if check:
+        return check.count(check[0]) == len(check)
+    else:
+        return False
 
 class Sudoku:
     def __init__(self, puzzle):
@@ -50,21 +55,17 @@ class Sudoku:
     def _grid_size(self):
         return len(self.puzzle[0])
     
-    
     @property   
     def _box_size(self):
         return self._grid_size//3
-    
     
     def coords_from_index(self, i):
         r = int(i//self._grid_size)
         c = int(i - r * self._grid_size)
         return self.Coords(r, c)
         
-    
     def index_from_coords(self, r, c):
         return r * self._grid_size + c
-    
     
     def box_from_coords(self, r, c):
         return self.Coords(int(r//3.0), int(c//3.0))
@@ -78,12 +79,9 @@ class Sudoku:
         row_end = row_start + self._grid_size
         return self._cells[row_start:row_end]
     
-    
     def col(self, cell):
         return self._cells[cell.col::self._grid_size]
         
-                
-    
     def box(self, cell):
         cells = []
         for n in range(self._box_size):
@@ -96,11 +94,19 @@ class Sudoku:
         
         return cells
     
-    
     @property
     def vectors(self):
         return [self.row, self.col, self.box]
+    
+    def infer_vector(self, candidates):
+        if same_attrs(candidates, 'col'):
+            return self.col
         
+        elif same_attrs(candidates, 'row'):
+            return self.row
+        
+        else:
+            return self.box
     
     def cell_availability(self, cell):
         if cell.value != 0: 
@@ -112,7 +118,6 @@ class Sudoku:
             
             return list(all_avail)
             
-    
     def solve(self, cell, value):
         '''
         set cell value to solved item and then remove value from 
@@ -133,7 +138,7 @@ class Sudoku:
         tests = [self.reveal_hidden_singles,
                  self.reveal_naked_pairs,
                  self.reveal_pointing_pairs,
-                 self.reveal_hidden_pairs]*2    
+                 self.reveal_hidden_pairs]    
                  
         for n in range(self._grid_size):
             cell = self.Cell(row=n, col=n)
@@ -145,7 +150,6 @@ class Sudoku:
             for test in tests:
                 test(self.box(cell))
                 
-    
     def solve_singles(self):
         '''
         check available candidates for each cell, if one candidate, solve
@@ -156,7 +160,6 @@ class Sudoku:
             if len(cell.available) == 1:
                 self.solve(cell, cell.available.pop()) 
                 self.solve_singles()
-    
     
     def reveal_hidden_singles(self, candidates):
         '''
@@ -173,9 +176,7 @@ class Sudoku:
             for value in counts:
                 if value in candidate.available: 
                     self._cells[candidate.index].available = [value,]
-        
-        
-    
+
     def reveal_naked_pairs(self, candidates):
         for n in (2,3):
             pairs = [set(c.available) for c in candidates if len(c.available) == n]
@@ -187,16 +188,8 @@ class Sudoku:
                         for p in pair:
                             if p in c.available: self._cells[c.index].available.remove(p)
     
-    
     def reveal_pointing_pairs(self, candidates):
         flat_list = chain.from_iterable([c.available for c in candidates])
-        
-        def same_attrs(iter, attr):
-            check = [getattr(i, attr) for i in iter]
-            if check:
-                return check.count(check[0]) == len(check)
-            else:
-                return False
         
         for n in (2,3):
             pairs = [value for value, count in Counter(flat_list).items() if count == n]
@@ -220,54 +213,38 @@ class Sudoku:
                             for cell in [c for c in row if c.index not in safe_index and pair in c.available]:
                                 self._cells[cell.index].available.remove(pair)
 
-                    
     def reveal_hidden_pairs(self, candidates):
         '''
         see hidden singles
         '''
         
-        def count_pair(needles, haystack, how_many):
-            '''
-            make sure each member of pair only shows up n times
-            '''
-            for needle in needles:
-                if list(haystack).count(needle) != how_many:
-                    return False
+        vector = self.infer_vector(candidates)
+        
+        def find_hidden_pairs(candidates, n):
+            available = [c.available for c in candidates]
+            all_available = list(chain.from_iterable(available))
             
-            return True
-                
-        def hidden_pairs(candidates, n=2):
-            flat_list = chain.from_iterable([c.available for c in candidates])
-            all_combos = []
-            for c in candidates:
-                combos = combinations(c.available, n)
-                for combo in combos:
-                    all_combos.append(combo)
+            all_combos = chain.from_iterable([list(combinations(a, n)) for a in available])
             
-            all_pairs = [pair for pair, count in Counter(all_combos).items() 
-                              if count == n and count_pair(pair, flat_list, n)
-                              and candidates.count(list(pair)) != n]
-            
-            return all_pairs
+            return [pair for pair, count in Counter(all_combos).items() 
+                         if count == n 
+                         and available.count(list(pair)) != n
+                         and all(all_available.count(p) == n for p in pair)]
         
         for n in (2,3):
-            pairs = hidden_pairs(candidates, n)
+            pairs = find_hidden_pairs(candidates, n)
             while pairs: 
                 pair = pairs.pop()
-    
-                for c in candidates:
-                    if all(p in c.available for p in pair):
-                        self._cells[c.index].available = list(pair)
-                    elif any(p in c.available for p in pair):
-                        for p in [p for p in pair if p in c.available]:
-                            self._cells[c.index].available.remove(p)
-                
-                pairs = hidden_pairs(candidates, n)
-
+                matches = [c for c in candidates if all(p in c.available for p in pair)]
+                if len(matches) == n:
+                    for m in matches:
+                        self._cells[m.index].available = list(pair)
+                    
+                pairs = find_hidden_pairs(vector(candidates[0]), n)
+            
     @property
-    def value(self) :
+    def value(self):
         return ''.join([str(c.value) for c in self.row(self.Cell(row=0))][:3])
-    
     
     def validate(self):
         
@@ -287,19 +264,15 @@ class Sudoku:
         self.result = self.value
         return True
     
-        
-    
-    
     def __repr__(self):
         rows = [' '.join([str(c.value) for c in self.row(self.Cell(row=n))]) for n in range(self._grid_size)]
         return '\n'.join(rows)
-
-          
 
 
 def main():          
     puzzles = range(50)
     solved = 0
+    answer = 0
     
     start = time.time()
     for n in puzzles:
@@ -307,7 +280,8 @@ def main():
         p.solve_singles()
         if p.validate():
             solved += 1
-            print(p.value)
+            print(n, p.value, '...')
+            answer += int(p.value)
         else:
             print(p)
             for r in range(p._grid_size):
@@ -315,6 +289,7 @@ def main():
             print()
             
     print('Solved: {}/{} in {:.2f}s'.format(solved, len(puzzles), time.time()-start))
+    print(answer)
 
 
 if __name__ == '__main__':
